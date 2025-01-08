@@ -8,12 +8,21 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 
    ```bash
    npm install
+   npm install axios
+   npm install express
+   npm install robotjs
+   npm install cors
    ```
 
 2. Start the app
 
    ```bash
     npx expo start
+   ```
+3. Run the server.js script
+
+   ```bash
+      node scripts/server.js
    ```
 
 In the output, you'll find options to open the app in a
@@ -24,16 +33,6 @@ In the output, you'll find options to open the app in a
 - [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
 
 ## Learn more
 
