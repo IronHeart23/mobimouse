@@ -1,4 +1,4 @@
-# Welcome to Mobimouse 👋
+# Welcome to MobiMouse 👋
 
 This app is about creating a mobile phone which is capable of controlling desktop cursor.
 Also this is my college project but it will be open source so anyone can use it for their work.
