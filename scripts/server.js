@@ -39,3 +39,17 @@ app.get('/mouse/position', (req, res) => {
     const mousePos = robot.getMousePos();
     res.json(mousePos);
 });
+
+const handleClick = (buttonType) => {
+    axios.post(`http://${serverIp}:3000/mouse/click`, { button: buttonType });
+};
+
+app.post('/mouse/hold', (req, res) => {
+    const { button, action } = req.body;
+    if (action === 'down') {
+        robot.mouseToggle('down', button);
+    } else {
+        robot.mouseToggle('up', button);
+    }
+    res.send(`Mouse ${button} ${action}`);
+});
