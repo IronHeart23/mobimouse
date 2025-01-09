@@ -1,36 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, PanResponder, Button, StyleSheet } from 'react-native';
 import axios from 'axios';
 
 const App = () => {
-    const [serverIp, setServerIp] = useState('192.168.1.107'); // Replace with your computer's IP
+    const [serverIp, setServerIp] = useState('COMPUTER_IP'); // Replace with your computer's IP
     const [screenSize, setScreenSize] = useState({ width: 0, height: 0 });
-    const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 }); // Tracks current mouse position
+    const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 }); // Tracks initial mouse position
 
-    useEffect(() => {
-        // Fetch the desktop screen size and current mouse position when the app starts
-        const fetchInitialData = async () => {
-            try {
-                const screenResponse = await axios.get(`http://${serverIp}:3000/screen`);
-                setScreenSize(screenResponse.data);
-
-                const mouseResponse = await axios.get(`http://${serverIp}:3000/mouse/position`);
-                setMousePosition(mouseResponse.data); // Initialize with current mouse position
-            } catch (error) {
-                console.error('Error fetching initial data:', error);
-            }
-        };
-
-        fetchInitialData();
+    React.useEffect(() => {
+        // Fetch the desktop screen size when the app starts
+        axios.get(`http://${serverIp}:3000/screen`).then((response) => {
+            setScreenSize(response.data);
+        });
     }, [serverIp]);
 
     const panResponder = PanResponder.create({
         onMoveShouldSetPanResponder: () => true,
         onPanResponderGrant: () => {
-            // No need to fetch the mouse position here anymore
+            // Fetch the current mouse position on the desktop when a gesture starts
+            axios.get(`http://${serverIp}:3000/mouse/position`).then((response) => {
+                setMousePosition(response.data); // Store the initial position
+            });
         },
         onPanResponderMove: (event, gesture) => {
-            // Calculate the new mouse position based on the last known position and gesture displacement
+            // Calculate the new mouse position based on the initial position and gesture displacement
             const newX = Math.min(
                 Math.max(0, mousePosition.x + (gesture.dx / 300) * screenSize.width),
                 screenSize.width
@@ -40,14 +33,8 @@ const App = () => {
                 screenSize.height
             );
 
-            // Update the mouse position state
-            setMousePosition({ x: newX, y: newY });
-
             // Send the new mouse position to the desktop server
             axios.post(`http://${serverIp}:3000/mouse/move`, { x: newX, y: newY });
-        },
-        onPanResponderRelease: () => {
-            // Optionally, you can update the mouse position here if needed
         },
     });
 

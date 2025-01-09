@@ -31,9 +31,3 @@ app.get('/screen', (req, res) => {
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
 });
-
-// Endpoint to get current mouse position
-app.get('/mouse/position', (req, res) => {
-    const mousePos = robot.getMousePos();
-    res.json(mousePos);
-});
