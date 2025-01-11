@@ -53,3 +53,19 @@ app.post('/mouse/hold', (req, res) => {
     }
     res.send(`Mouse ${button} ${action}`);
 });
+
+app.post('/scroll', (req, res) => {
+    const { amount } = req.body;
+    
+    // Adjust scroll sensitivity
+    const scrollAmount = Math.round(amount / 3); // Adjust divisor for sensitivity
+    
+    try {
+        // Vertical scroll
+        robot.scrollMouse(0, scrollAmount);
+        res.send('Scrolled successfully');
+    } catch (error) {
+        console.error('Scroll error:', error);
+        res.status(500).send('Scroll failed');
+    }
+});

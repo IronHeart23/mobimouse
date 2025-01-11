@@ -1,10 +1,11 @@
-//Snapshot 1w1jv1b
-//1st Week 01 January Version 1.b
+//Snapshot 1w1jv1c
+//1st Week 01 January Version 1.c
 
 //To-do:
 //1. Add 'Right click button' __ADDED__ 
 //2. Need to add gesture for Left and Right click
-//  Left click: Tap or Double Tap, Right click: __Semi-Complete__
+//  Left click: Tap or Double Tap, Right click: __Complete__
+//3. Two finger swipe for scrolling
 //3. Automatically gets the user IP address forf connection
 //4. 5-digit pin for connecting to a specific desktop
 
@@ -13,7 +14,7 @@ import { View, PanResponder, Button, StyleSheet } from 'react-native';
 import axios from 'axios';
 
 const App = () => {
-    const [serverIp, setServerIp] = useState('IP_ADDRESS'); // Replace with your computer's IP
+    const [serverIp, setServerIp] = useState('192.168.1.107'); // Replace with your computer's IP
     const [screenSize, setScreenSize] = useState({ width: 0, height: 0 });
     const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 }); // Tracks current mouse position
 
@@ -40,8 +41,8 @@ const App = () => {
     const TAP_INTERVAL = 300; // ms between taps to count as double-tap
     
     const [isDragging, setIsDragging] = useState(false);
-const lastMouseCheck = useRef(Date.now());
-const IDLE_CHECK_INTERVAL = 2000; // Check mouse position after 2s idle
+    const lastMouseCheck = useRef(Date.now());
+    const IDLE_CHECK_INTERVAL = 2000; // Check mouse position after 2s idle
 
 useEffect(() => {
     const checkMousePosition = async () => {
@@ -60,42 +61,84 @@ useEffect(() => {
     return () => clearInterval(interval);
 }, [serverIp]);
 
+// Add this state for tracking touches
+const [touchCount, setTouchCount] = useState(0);
+
+const [lastClickTime, setLastClickTime] = useState(0);
+const CLICK_DELAY = 200; // Delay to check for potential double tap
+
+const [isLeftClickHeld, setIsLeftClickHeld] = useState(false);
+
+const MOVEMENT_THRESHOLD = 1; // Increased threshold for movement detection
+
 const panResponder = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     
-    onPanResponderGrant: () => {
-        pressStartTime.current = Date.now();
+    onPanResponderGrant: (evt) => {
+        const touches = evt.nativeEvent.touches.length;
+        setTouchCount(touches);
+        
+        const currentTime = Date.now();
+        pressStartTime.current = currentTime;
         hasMoved.current = false;
-        setIsDragging(true);
-        axios.post(`http://${serverIp}:3000/mouse/hold`, { button: 'left', action: 'down' });
+        
+        if (touches === 2) {
+            setIsLeftClickHeld(true);
+            axios.post(`http://${serverIp}:3000/mouse/hold`, { button: 'left', action: 'down' });
+        } else if (touches === 1) {
+            if (currentTime - lastTapTime.current < TAP_INTERVAL) {
+                setLastClickTime(0);
+                axios.post(`http://${serverIp}:3000/mouse/hold`, { button: 'left', action: 'down' });
+                setIsDragging(true);
+            }
+            lastTapTime.current = currentTime;
+        }
     },
     
     onPanResponderMove: (event, gesture) => {
-        if (Math.abs(gesture.dx) > 5 || Math.abs(gesture.dy) > 5) {
+        const touches = event.nativeEvent.touches.length;
+        
+        // Increase threshold for movement detection
+        if (Math.abs(gesture.dx) > MOVEMENT_THRESHOLD || Math.abs(gesture.dy) > MOVEMENT_THRESHOLD) {
             hasMoved.current = true;
         }
         
         const newX = Math.min(Math.max(0, mousePosition.x + (gesture.dx / 300) * screenSize.width), screenSize.width);
         const newY = Math.min(Math.max(0, mousePosition.y + (gesture.dy / 300) * screenSize.height), screenSize.height);
         setMousePosition({ x: newX, y: newY });
-        lastMouseCheck.current = Date.now();
         axios.post(`http://${serverIp}:3000/mouse/move`, { x: newX, y: newY });
     },
     
     onPanResponderRelease: () => {
         const pressDuration = Date.now() - pressStartTime.current;
+        const currentTime = Date.now();
         
-        if (isDragging && hasMoved.current) {
-            setIsDragging(false);
+        if (isLeftClickHeld) {
+            setIsLeftClickHeld(false);
             axios.post(`http://${serverIp}:3000/mouse/hold`, { button: 'left', action: 'up' });
-        } else if (!hasMoved.current) {
-            if (pressDuration < 500) {
-                handleClick('left');
-            } else {
-                handleClick('right');
+        }
+        
+        // Only trigger clicks if there was minimal movement
+        if (touchCount === 1) {
+            if (isDragging) {
+                axios.post(`http://${serverIp}:3000/mouse/hold`, { button: 'left', action: 'up' });
+                setIsDragging(false);
+            } else if (!hasMoved.current) {  // This check is now more strict due to higher threshold
+                if (pressDuration < 500) {
+                    setLastClickTime(currentTime);
+                    setTimeout(() => {
+                        if (Date.now() - lastClickTime >= TAP_INTERVAL) {
+                            handleClick('left');
+                        }
+                    }, CLICK_DELAY);
+                } else {
+                    handleClick('right');
+                }
             }
         }
+        
+        setTouchCount(0);
     },
 });
     const pressStartTime = useRef(0);
