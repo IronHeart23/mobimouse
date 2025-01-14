@@ -1,4 +1,5 @@
-//Snapshot 1wv1a
+//Snapshot 2w1jv1d
+//2nd Week 01 January Version 1.d
 
 const express = require('express');
 const robot = require('robotjs');
@@ -69,3 +70,12 @@ app.post('/scroll', (req, res) => {
         res.status(500).send('Scroll failed');
     }
 });
+
+// In your server.js
+app.get('/discover', (req, res) => {
+    res.json({
+      name: require('os').hostname(),
+      ip: require('ip').address(),
+      // Add any other relevant device info
+    });
+  });
