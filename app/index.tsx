@@ -1,61 +1,62 @@
-//Snapshot 2w1jv1d
-
-// app/index.tsx
-import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+//index.tsx
+import React from 'react';
+import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { Link } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import axios from 'axios';
+import useDeviceScanning from './hooks/useDeviceScanning';
 
 export default function Home() {
-  const [availableDevices, setAvailableDevices] = useState([
-    // For testing, remove or modify when implementing actual device scanning
-    { id: '1', name: 'DESKTOP-OKA3Q8C', ip: '192.168.1.100' }
-  ]);
-
-  // Function to scan for devices running server.js
-  const scanForDevices = async () => {
-    try {
-      // This is a placeholder for actual network scanning logic
-      // You'll need to implement the actual device discovery mechanism
-      // For example, broadcasting UDP packets or using mDNS
-      
-      // Placeholder for demonstration
-      const testDevice = {
-        id: '1',
-        name: 'DESKTOP-OKA3Q8C',
-        ip: '192.168.1.100'
-      };
-      
-      setAvailableDevices([testDevice]);
-    } catch (error) {
-      console.error('Error scanning for devices:', error);
-    }
-  };
-
-  useEffect(() => {
-    scanForDevices();
-  }, []);
+  const { availableDevices, isScanning, error, scanNetwork } = useDeviceScanning();
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>MobiMouse Connect</Text>
       
       <Text style={styles.descriptionText}>
-        Other devices running MobiMouse server in your same network should appear here.
+        Other devices running MobiMouse server in your same network will appear here.
       </Text>
+
+      <Pressable 
+        style={styles.scanButton}
+        onPress={scanNetwork}
+        disabled={isScanning}
+      >
+        <Text style={styles.scanButtonText}>
+          {isScanning ? 'Scanning...' : 'Scan for Devices'}
+        </Text>
+      </Pressable>
+
+      {error && (
+        <Text style={styles.errorText}>{error}</Text>
+      )}
 
       <Text style={styles.sectionTitle}>Available devices</Text>
 
       <ScrollView style={styles.deviceList}>
-        {availableDevices.map((device) => (
-          <Link key={device.id} href="/touchpad" asChild>
-            <Pressable style={styles.deviceItem}>
-              <MaterialIcons name="computer" size={24} color="#fff" style={styles.deviceIcon} />
-              <Text style={styles.deviceName}>{device.name}</Text>
-            </Pressable>
-          </Link>
-        ))}
+        {isScanning ? (
+          <ActivityIndicator size="large" color="#4CAF50" />
+        ) : availableDevices.length > 0 ? (
+          availableDevices.map((device) => (
+            <Link 
+              key={device.id}
+              href={{
+                pathname: "/touchpad",
+                params: { serverIp: device.ip }
+              }}
+              asChild
+            >
+              <Pressable style={styles.deviceItem}>
+                <MaterialIcons name="computer" size={24} color="#fff" style={styles.deviceIcon} />
+                <View>
+                  <Text style={styles.deviceName}>{device.name}</Text>
+                  <Text style={styles.deviceIp}>{device.ip}</Text>
+                </View>
+              </Pressable>
+            </Link>
+          ))
+        ) : (
+          <Text style={styles.noDevicesText}>No devices found</Text>
+        )}
       </ScrollView>
     </View>
   );
@@ -103,4 +104,31 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#ffffff',
   },
+  scanButton: {
+    backgroundColor: '#4CAF50',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  scanButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  errorText: {
+    color: '#ff4444',
+    fontSize: 14,
+    marginBottom: 20,
+  },
+  deviceIp: {
+    fontSize: 14,
+    color: '#999999',
+  },
+  noDevicesText: {
+    color: '#999999',
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 20,
+  }
 });

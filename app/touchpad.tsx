@@ -9,14 +9,17 @@
 //3. Automatically gets the user IP address forf connection
 //4. 5-digit pin for connecting to a specific desktop
 
-import { useRouter } from 'expo-router';  // Instead of using navigation prop
+//touchpad.tsx
+import { useRouter, useLocalSearchParams } from 'expo-router';  // Instead of using navigation prop
 import React, { useState, useEffect, useRef } from 'react';
+
 import { View, PanResponder, Button, StyleSheet } from 'react-native';
 import axios from 'axios';
 
 const App = () => {
     const router = useRouter(); // Use the router hook
-    const [serverIp, setServerIp] = useState('192.168.1.107'); // Replace with your computer's IP
+    //const [serverIp, setServerIp] = useState('192.168.1.107'); // Replace with your computer's IP
+    const { serverIp } = useLocalSearchParams<{ serverIp: string }>();
     const [screenSize, setScreenSize] = useState({ width: 0, height: 0 });
     const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 }); // Tracks current mouse position
 
