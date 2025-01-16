@@ -1,6 +1,6 @@
-//useDeviceScanning.ts
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import NetInfo from '@react-native-community/netinfo';
+import * as Network from 'expo-network';
 import axios from 'axios';
 
 interface Device {
@@ -14,67 +14,10 @@ const useDeviceScanning = () => {
   const [availableDevices, setAvailableDevices] = useState<Device[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const wsConnections = useRef<Map<string, WebSocket>>(new Map());
-  const devicesMap = useRef<Map<string, Device>>(new Map());
-
-  const testConnection = async (ip: string): Promise<boolean> => {
-    try {
-      // First try HTTP connection to verify server is running
-      const response = await axios.get(`http://${ip}:3000/ping`, { timeout: 1000 });
-      return response.data === 'Server is running';
-    } catch {
-      return false;
-    }
-  };
-
-  const connectToWebSocket = (ip: string) => {
-    // Only create a new connection if one doesn't exist
-    if (wsConnections.current.has(ip)) return;
-
-    try {
-      const ws = new WebSocket(`ws://${ip}:3001`);
-      wsConnections.current.set(ip, ws);
-
-      ws.onopen = () => {
-        console.log(`WebSocket connected to ${ip}`);
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const device = JSON.parse(event.data);
-          const deviceId = `${device.ip}:${device.port}`;
-
-          if (!devicesMap.current.has(deviceId)) {
-            devicesMap.current.set(deviceId, {
-              id: deviceId,
-              name: device.name,
-              ip: device.ip,
-              port: device.port
-            });
-            setAvailableDevices(Array.from(devicesMap.current.values()));
-          }
-        } catch (e) {
-          console.error('Error parsing device data:', e);
-        }
-      };
-
-      ws.onerror = () => {
-        ws.close();
-        wsConnections.current.delete(ip);
-      };
-
-      ws.onclose = () => {
-        wsConnections.current.delete(ip);
-      };
-    } catch (e) {
-      console.log(`Failed to connect to ${ip}`);
-    }
-  };
 
   const scanNetwork = async () => {
     setIsScanning(true);
     setError(null);
-    devicesMap.current.clear();
     setAvailableDevices([]);
 
     try {
@@ -83,41 +26,38 @@ const useDeviceScanning = () => {
         throw new Error('Please connect to a WiFi network');
       }
 
-      // Close existing connections
-      wsConnections.current.forEach(ws => ws.close());
-      wsConnections.current.clear();
-
-      // Get the subnet from WiFi details
-      const subnet = netInfo.details?.ipAddress?.split('.').slice(0, 3).join('.') || '192.168.1';
+      const ipAddress = await Network.getIpAddressAsync();
+      const subnet = ipAddress.substring(0, ipAddress.lastIndexOf('.'));
       
-      // Test specific IP if known
-      const knownIP = '192.168.1.107';
-      if (await testConnection(knownIP)) {
-        connectToWebSocket(knownIP);
+      // Scan common ports on all IPs in subnet
+      const scanPromises = [];
+      for (let i = 1; i < 255; i++) {
+        const testIP = `${subnet}.${i}`;
+        scanPromises.push(
+          axios.get(`http://${testIP}:3000/ping`, { timeout: 1000 })
+            .then(() => ({
+              id: `${testIP}:3000`,
+              name: `Device at ${testIP}`,
+              ip: testIP,
+              port: 3000
+            }))
+            .catch(() => null)
+        );
       }
 
-      // Scan subnet
-      for (let i = 1; i <= 10; i++) {
-        const ip = `${subnet}.${i}`;
-        if (await testConnection(ip)) {
-          connectToWebSocket(ip);
-        }
-      }
+      const results = await Promise.all(scanPromises);
+      const devices = results.filter((device): device is Device => device !== null);
+      setAvailableDevices(devices);
+
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to scan for devices');
+      setError(err instanceof Error ? err.message : 'Failed to scan network');
     } finally {
-      // Stop scanning after 5 seconds
-      setTimeout(() => {
-        setIsScanning(false);
-      }, 5000);
+      setIsScanning(false);
     }
   };
 
   useEffect(() => {
     scanNetwork();
-    return () => {
-      wsConnections.current.forEach(ws => ws.close());
-    };
   }, []);
 
   return {

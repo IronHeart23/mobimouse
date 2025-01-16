@@ -4,40 +4,73 @@ const robot = require('robotjs');
 const cors = require('cors');
 const WebSocket = require('ws');
 const os = require('os');
+const dgram = require('dgram');
 const app = express();
 const port = 3000;
 const wsPort = 3001;
+const discoveryPort = 3002;
 
 // Enhanced IP detection
-function getLocalIP() {
+function getLocalIPs() {
     const interfaces = os.networkInterfaces();
     const addresses = [];
     
-    console.log('Available network interfaces:');
     for (const name of Object.keys(interfaces)) {
-        console.log(`\nInterface: ${name}`);
         for (const interface of interfaces[name]) {
-            if (interface.family === 'IPv4') {
-                console.log(`  Address: ${interface.address}`);
-                console.log(`  Internal: ${interface.internal}`);
-                if (!interface.internal) {
-                    addresses.push(interface.address);
-                }
+            if (interface.family === 'IPv4' && !interface.internal) {
+                addresses.push(interface.address);
             }
         }
     }
-    
-    console.log('\nPotential server IPs:', addresses);
-    return addresses[0] || '127.0.0.1';
+    return addresses;
 }
 
-const ip = getLocalIP();
-console.log('\nSelected server IP:', ip);
+const localIPs = getLocalIPs();
+console.log('Server IPs:', localIPs);
+
+const discoverySocket = dgram.createSocket('udp4');
+
+discoverySocket.on('error', (err) => {
+    console.error('Discovery socket error:', err);
+});
+
+discoverySocket.on('message', (msg, rinfo) => {
+    if (msg.toString() === 'MOBIMOUSE_DISCOVER') {
+        console.log('Discovery request from:', rinfo.address);
+        const response = JSON.stringify({
+            name: os.hostname(),
+            ip: localIPs[0],
+            port: port,
+            wsPort: wsPort
+        });
+        discoverySocket.send(response, rinfo.port, rinfo.address);
+    }
+});
+
+discoverySocket.bind(discoveryPort, () => {
+    discoverySocket.setBroadcast(true);
+    console.log(`Discovery service listening on port ${discoveryPort}`);
+});
+
+console.log('\nSelected server IP:', localIPs);
 console.log('Server hostname:', os.hostname());
 
 // Create WebSocket server with error handling
-const wss = new WebSocket.Server({ port: wsPort }, () => {
-    console.log(`WebSocket server is running on port ${wsPort}`);
+const wss = new WebSocket.Server({ port: wsPort });
+
+wss.on('connection', (ws) => {
+    console.log('Client connected');
+    
+    const serverInfo = JSON.stringify({
+        name: os.hostname(),
+        ip: localIPs[0],
+        port: port
+    });
+    ws.send(serverInfo);
+
+    ws.on('close', () => {
+        console.log('Client disconnected');
+    });
 });
 
 wss.on('error', (error) => {
@@ -51,7 +84,7 @@ wss.on('connection', (ws, req) => {
     // Send server info immediately upon connection
     const serverInfo = JSON.stringify({
         name: os.hostname(),
-        ip: ip,
+        ip: localIPs,
         port: port
     });
     
@@ -72,11 +105,12 @@ wss.on('connection', (ws, req) => {
 });
 
 // Enhanced CORS configuration
-app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST'],
-    allowedHeaders: ['Content-Type']
-}));
+app.use(cors());
+app.use(express.json());
+
+app.get('/ping', (req, res) => {
+    res.send('Server is running');
+});
 
 app.use(express.json());
 
@@ -150,11 +184,10 @@ app.post('/mouse/hold', (req, res) => {
     }
 });
 
-const server = app.listen(port, () => {
-    console.log(`\nHTTP server running at http://localhost:${port}`);
-    console.log(`Try accessing: http://${ip}:${port}/ping`);
-});
-
-server.on('error', (error) => {
-    console.error('HTTP server error:', error);
+app.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}`);
+    console.log('Available on:');
+    localIPs.forEach(ip => {
+        console.log(`  http://${ip}:${port}`);
+    });
 });

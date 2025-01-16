@@ -2,9 +2,6 @@
 //2nd Week 01 January Version 1.d
 
 //To-do:
-//1. Add 'Right click button' __ADDED__ 
-//2. Need to add gesture for Left and Right click
-//  Left click: Tap or Double Tap, Right click: __Complete__
 //3. Two finger swipe for scrolling
 //3. Automatically gets the user IP address forf connection
 //4. 5-digit pin for connecting to a specific desktop
@@ -18,7 +15,6 @@ import axios from 'axios';
 
 const App = () => {
     const router = useRouter(); // Use the router hook
-    //const [serverIp, setServerIp] = useState('192.168.1.107'); // Replace with your computer's IP
     const { serverIp } = useLocalSearchParams<{ serverIp: string }>();
     const [screenSize, setScreenSize] = useState({ width: 0, height: 0 });
     const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 }); // Tracks current mouse position
