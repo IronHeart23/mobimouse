@@ -1,7 +1,8 @@
 //touchpad.tsx
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import React, { useState, useEffect, useRef } from 'react';
-import { View, PanResponder, Button, StyleSheet } from 'react-native';
+import { View, Text, PanResponder, Pressable, StyleSheet, SafeAreaView } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 
 const Touchpad = () => {
@@ -37,11 +38,21 @@ const Touchpad = () => {
         fetchInitialData();
     }, [serverIp]);
 
-    const handleMouseClick = async (button: 'left' | 'right') => {
+    type MouseButton = 'left' | 'right' | 'middle';
+
+    const handleMouseClick = async (button: MouseButton) => {
         try {
             await axios.post(`http://${serverIp}:3000/mouse/click`, { button });
         } catch (error) {
             console.error('Click error:', error);
+        }
+    };
+
+    const handleMouseHold = async (button: 'left' | 'right', action: 'down' | 'up') => {
+        try {
+            await axios.post(`http://${serverIp}:3000/mouse/hold`, { button, action });
+        } catch (error) {
+            console.error(`Mouse ${action} error:`, error);
         }
     };
 
@@ -64,19 +75,15 @@ const Touchpad = () => {
     const panResponder = PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
-
         onPanResponderGrant: async (evt) => {
             const currentTime = Date.now();
             pressStartTime.current = currentTime;
             hasMoved.current = false;
             
-            // Store initial position for potential drag
             dragStartPos.current = { ...mousePosition };
-
-            // Handle double tap
             if (currentTime - lastTapTime.current < DOUBLE_TAP_DELAY) {
                 isDragging.current = true;
-                await handleMouseDown('left');
+                await handleMouseHold('left', 'down'); // Only use left click for drag
             }
             
             lastTapTime.current = currentTime;
@@ -108,40 +115,71 @@ const Touchpad = () => {
         onPanResponderRelease: async (evt) => {
             const pressDuration = Date.now() - pressStartTime.current;
 
-            // Handle drag end
             if (isDragging.current) {
-                await handleMouseUp('left');
+                await handleMouseHold('left', 'up');
                 isDragging.current = false;
                 return;
             }
 
-            // Handle tap/click
             if (!hasMoved.current) {
                 if (pressDuration < HOLD_DURATION) {
-                    // Single tap
                     await handleMouseClick('left');
                 } else {
-                    // Long press - right click
                     await handleMouseClick('right');
                 }
             }
         },
-
         onPanResponderTerminate: async () => {
-            // Clean up any held mouse buttons if gesture is interrupted
             if (isDragging.current) {
-                await handleMouseUp('left');
+                await handleMouseHold('left', 'up');
                 isDragging.current = false;
             }
         },
     });
 
+    const handleMiddleClick = () => {
+        handleMouseClick('left');
+    };
+
     return (
         <View style={styles.container}>
-            <View style={styles.touchpad} {...panResponder.panHandlers} />
+            {/* Single header */}
+            <View style={styles.header}>
+                <Pressable onPress={() => router.back()} style={styles.backButton}>
+                    <Ionicons name="chevron-back" size={24} color="black" />
+                    <Text style={styles.headerTitle}>Touch Input</Text>
+                </Pressable>
+                <Ionicons name="keypad-outline" size={24} color="black" />
+            </View>
+
+            {/* Touch area with instruction text */}
+            <View style={styles.touchAreaContainer}>
+                <Text style={styles.instructionText}>
+                    Move your finger on the screen to move the mouse cursor
+                </Text>
+                <View style={styles.touchpad} {...panResponder.panHandlers} />
+            </View>
+
+            {/* Bottom buttons */}
             <View style={styles.buttonContainer}>
-                <Button title="Left Click" onPress={() => handleMouseClick('left')} />
-                <Button title="Right Click" onPress={() => handleMouseClick('right')} />
+                <Pressable 
+                    style={styles.button} 
+                    onPress={() => handleMouseClick('left')}
+                >
+                    <Text style={styles.buttonText}>L</Text>
+                </Pressable>
+                <Pressable 
+                    style={[styles.button, styles.middleButton]} 
+                    onPress={() => handleMouseClick('middle')}
+                >
+                    <Text style={styles.buttonText}>M</Text>
+                </Pressable>
+                <Pressable 
+                    style={styles.button} 
+                    onPress={() => handleMouseClick('right')}
+                >
+                    <Text style={styles.buttonText}>R</Text>
+                </Pressable>
             </View>
         </View>
     );
@@ -150,28 +188,66 @@ const Touchpad = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: 'white',
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E0E0E0',
+        backgroundColor: 'white',
+    },
+    backButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: '500',
+        marginLeft: 8,
+    },
+    touchAreaContainer: {
+        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#f5f5f5',
+        paddingHorizontal: 20,
+    },
+    instructionText: {
+        fontSize: 16,
+        color: '#000',
+        textAlign: 'center',
+        marginBottom: 20,
     },
     touchpad: {
-        width: 300,
-        height: 400,
-        backgroundColor: '#ddd',
-        borderRadius: 10,
-        marginBottom: 20,
-        shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 2,
-        },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-        elevation: 5,
+        width: '100%',
+        flex: 1,
+        backgroundColor: '#FFF',
     },
     buttonContainer: {
         flexDirection: 'row',
-        gap: 20,
+        justifyContent: 'center',
+        padding: 20,
+        gap: 10,
+    },
+    button: {
+        flex: 1,
+        backgroundColor: '#E0E0E0',
+        borderRadius: 25,
+        height: 50,
+        justifyContent: 'center',
+        alignItems: 'center',
+        maxWidth: 120,
+    },
+    middleButton: {
+        maxWidth: 50,
+    },
+    buttonText: {
+        fontSize: 16,
+        fontWeight: '500',
+        color: '#000',
     },
 });
 

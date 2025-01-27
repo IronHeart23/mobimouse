@@ -28,9 +28,10 @@ const MOUSEEVENTF_LEFTDOWN = 0x0002;
 const MOUSEEVENTF_LEFTUP = 0x0004;
 const MOUSEEVENTF_RIGHTDOWN = 0x0008;
 const MOUSEEVENTF_RIGHTUP = 0x0010;
+const MOUSEEVENTF_MIDDLEDOWN = 0x0020;
+const MOUSEEVENTF_MIDDLEUP = 0x0040;
 const SM_CXSCREEN = 0;
 const SM_CYSCREEN = 1;
-
 
 // Define Windows API structures with error handling
 let user32;
@@ -109,6 +110,10 @@ const mouseClick = async (button = 'left') => {
         user32.mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0);
         await new Promise(resolve => setTimeout(resolve, 50));
         user32.mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0);
+    } else if (button === 'middle') {
+        user32.mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, 0);
+        await new Promise(resolve => setTimeout(resolve, 50));
+        user32.mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, 0);
     }
 };
 
@@ -127,6 +132,10 @@ const mouseHold = withRetry(async (button = 'left', action = 'down') => {
         action === 'down' ?
             user32.mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0) :
             user32.mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0);
+    } else if (button === 'middle') {
+        action === 'down' ?
+            user32.mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, 0) :
+            user32.mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, 0);
     }
 });
 
