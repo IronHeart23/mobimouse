@@ -4,17 +4,21 @@
   "main": "server.js",
   "bin": "server.js",
   "pkg": {
-    "targets": ["node16-win-x64"],
-    "assets": ["node_modules/**/*"],
+    "targets": [
+      "node16-win-x64"
+    ],
+    "assets": [
+      "node_modules/**/*"
+    ],
     "outputPath": "dist"
   },
   "dependencies": {
-    "express": "^4.17.1",
     "cors": "^2.8.5",
-    "ws": "^8.2.0",
+    "express": "^4.17.1",
     "ffi-napi": "^4.0.3",
     "ref-napi": "^3.0.3",
-    "ref-struct-napi": "^1.1.1"
+    "ref-struct-napi": "^1.1.1",
+    "ws": "^8.2.0"
   },
   "scripts": {
     "start": "node server.js",

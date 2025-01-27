@@ -19,28 +19,34 @@ process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
+const POINT = StructType({
+    x: 'long',
+    y: 'long'
+});
+
+const MOUSEEVENTF_LEFTDOWN = 0x0002;
+const MOUSEEVENTF_LEFTUP = 0x0004;
+const MOUSEEVENTF_RIGHTDOWN = 0x0008;
+const MOUSEEVENTF_RIGHTUP = 0x0010;
+const SM_CXSCREEN = 0;
+const SM_CYSCREEN = 1;
+
+
 // Define Windows API structures with error handling
 let user32;
 try {
-    const POINT = StructType({
-        x: 'long',
-        y: 'long'
-    });
-
-    // Mouse event constants
-    const MOUSEEVENTF_LEFTDOWN = 0x0002;
-    const MOUSEEVENTF_LEFTUP = 0x0004;
-    const MOUSEEVENTF_RIGHTDOWN = 0x0008;
-    const MOUSEEVENTF_RIGHTUP = 0x0010;
-
-    user32 = ffi.Library('user32', {
+    user32 = ffi.Library('user32.dll', {
         'SetCursorPos': ['bool', ['int', 'int']],
         'GetCursorPos': ['bool', [ref.refType(POINT)]],
         'mouse_event': ['void', ['int', 'int', 'int', 'int', 'int']],
         'GetSystemMetrics': ['int', ['int']]
     });
+
+    if (!user32) {
+        throw new Error('Failed to load user32.dll');
+    }
 } catch (error) {
-    console.error('Failed to load user32.dll:', error);
+    console.error('FFI Library Loading Error:', error);
     process.exit(1);
 }
 
@@ -82,12 +88,19 @@ function withRetry(fn, maxRetries = 3) {
     };
 }
 
-const moveMouse = withRetry(async (x, y) => {
+const moveMouse = async (x, y) => {
     const result = user32.SetCursorPos(Math.floor(x), Math.floor(y));
     if (!result) throw new Error('Failed to move cursor');
-});
+};
 
-const mouseClick = withRetry(async (button = 'left') => {
+const getMousePosition = async () => {
+    const point = new POINT();
+    const result = user32.GetCursorPos(point.ref());
+    if (!result) throw new Error('Failed to get cursor position');
+    return { x: point.x, y: point.y };
+};
+
+const mouseClick = async (button = 'left') => {
     if (button === 'left') {
         user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
         await new Promise(resolve => setTimeout(resolve, 50));
@@ -97,7 +110,13 @@ const mouseClick = withRetry(async (button = 'left') => {
         await new Promise(resolve => setTimeout(resolve, 50));
         user32.mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0);
     }
-});
+};
+
+const getScreenMetrics = () => {
+    const width = user32.GetSystemMetrics(SM_CXSCREEN);
+    const height = user32.GetSystemMetrics(SM_CYSCREEN);
+    return { width, height };
+};
 
 const mouseHold = withRetry(async (button = 'left', action = 'down') => {
     if (button === 'left') {
@@ -109,13 +128,6 @@ const mouseHold = withRetry(async (button = 'left', action = 'down') => {
             user32.mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0) :
             user32.mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0);
     }
-});
-
-const getMousePosition = withRetry(async () => {
-    const point = new POINT();
-    const result = user32.GetCursorPos(point.ref());
-    if (!result) throw new Error('Failed to get cursor position');
-    return { x: point.x, y: point.y };
 });
 
 // Express middleware for logging
@@ -192,30 +204,45 @@ app.get('/screen', (req, res) => {
     }
 });
 
+app.get('/screen', (req, res) => {
+    try {
+        const screenSize = getScreenMetrics();
+        res.json(screenSize);
+    } catch (error) {
+        console.error('Error getting screen metrics:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // WebSocket server with connection tracking
 const wss = new WebSocket.Server({ port: wsPort });
 
 wss.on('connection', (ws) => {
-    const id = Date.now().toString();
-    activeConnections.add(id);
-    console.log(`Client connected (${activeConnections.size} total)`);
-    
-    ws.send(JSON.stringify({
-        type: 'connected',
-        name: os.hostname(),
-        ip: localIPs[0],
-        port: port
-    }));
+    try {
+        const id = Date.now().toString();
+        activeConnections.add(id);
+        console.log(`Client connected (${activeConnections.size} total)`);
+        
+        // Add more robust error handling
+        ws.on('error', (error) => {
+            console.error('WebSocket connection error:', error);
+            activeConnections.delete(id);
+        });
 
-    ws.on('close', () => {
-        activeConnections.delete(id);
-        console.log(`Client disconnected (${activeConnections.size} remaining)`);
-    });
-
-    ws.on('error', (error) => {
-        console.error('WebSocket error:', error);
-        activeConnections.delete(id);
-    });
+        // Wrap send in try-catch
+        try {
+            ws.send(JSON.stringify({
+                type: 'connected',
+                name: os.hostname(),
+                ip: localIPs[0],
+                port: port
+            }));
+        } catch (sendError) {
+            console.error('Failed to send connection message:', sendError);
+        }
+    } catch (setupError) {
+        console.error('WebSocket setup error:', setupError);
+    }
 });
 
 // Start server with error handling
