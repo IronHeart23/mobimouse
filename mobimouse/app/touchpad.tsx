@@ -8,6 +8,8 @@ import {
   Pressable,
   StyleSheet,
   SafeAreaView,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import axios from "axios";
@@ -17,6 +19,13 @@ const Touchpad = () => {
   const { serverIp } = useLocalSearchParams<{ serverIp: string }>();
   const [screenSize, setScreenSize] = useState({ width: 0, height: 0 });
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [connecting, setConnecting] = useState(true);
+  const [connectionError, setConnectionError] = useState(false);
+
+  // Axios instance with timeout
+  const axiosInstance = axios.create({
+    timeout: 5000,
+  });
 
   // Refs for gesture handling
   const lastTapTime = useRef(0);
@@ -34,16 +43,37 @@ const Touchpad = () => {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const screenResponse = await axios.get(
+        setConnecting(true);
+        setConnectionError(false);
+
+        // First try a ping to verify connection
+        await axiosInstance.get(`http://${serverIp}:3000/ping`);
+
+        // Get screen size and mouse position
+        const screenResponse = await axiosInstance.get(
           `http://${serverIp}:3000/screen`
         );
         setScreenSize(screenResponse.data);
-        const mouseResponse = await axios.get(
+
+        const mouseResponse = await axiosInstance.get(
           `http://${serverIp}:3000/mouse/position`
         );
         setMousePosition(mouseResponse.data);
+
+        setConnecting(false);
       } catch (error) {
-        console.error("Error fetching initial data:", error);
+        console.error("Connection error:", error);
+        setConnectionError(true);
+        setConnecting(false);
+
+        Alert.alert(
+          "Connection Error",
+          `Failed to connect to ${serverIp}. Please make sure the server is running and accessible.`,
+          [
+            { text: "Try Again", onPress: fetchInitialData },
+            { text: "Go Back", onPress: () => router.back() },
+          ]
+        );
       }
     };
     fetchInitialData();
@@ -53,7 +83,7 @@ const Touchpad = () => {
 
   const handleMouseClick = async (button: MouseButton) => {
     try {
-      await axios.post(`http://${serverIp}:3000/mouse/click`, { button });
+      await axiosInstance.post(`http://${serverIp}:3000/mouse/click`, { button });
     } catch (error) {
       console.error("Click error:", error);
     }
@@ -64,7 +94,7 @@ const Touchpad = () => {
     action: "down" | "up"
   ) => {
     try {
-      await axios.post(`http://${serverIp}:3000/mouse/hold`, {
+      await axiosInstance.post(`http://${serverIp}:3000/mouse/hold`, {
         button,
         action,
       });
@@ -184,40 +214,91 @@ const Touchpad = () => {
         <Ionicons name="keypad-outline" size={24} color="#fff" />
       </View>
 
-      {/* Touch area with instruction text */}
-      <View style={styles.touchAreaContainer}>
-        <Text style={styles.instructionText}>
-          Move your finger on the screen to move the mouse cursor
-        </Text>
-        <View style={styles.touchpad} {...panResponder.panHandlers} />
-      </View>
+      {/* Connection status */}
+      {connecting && (
+        <View style={styles.statusContainer}>
+          <ActivityIndicator size="large" color="#4CAF50" />
+          <Text style={styles.statusText}>Connecting to {serverIp}...</Text>
+        </View>
+      )}
+      
+      {connectionError && (
+        <View style={styles.statusContainer}>
+          <Ionicons name="alert-circle" size={48} color="#e74c3c" />
+          <Text style={styles.statusText}>Connection failed</Text>
+          <Pressable
+            style={styles.retryButton}
+            onPress={() => router.replace({
+              pathname: "/touchpad",
+              params: { serverIp }
+            })}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </Pressable>
+        </View>
+      )}
 
-      {/* Bottom buttons */}
-      <View style={styles.buttonContainer}>
-        <Pressable
-          style={styles.button}
-          onPress={() => handleMouseClick("left")}
-        >
-          <Text style={styles.buttonText}>L</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.button, styles.middleButton]}
-          onPress={() => handleMouseClick("middle")}
-        >
-          <Text style={styles.buttonText}>M</Text>
-        </Pressable>
-        <Pressable
-          style={styles.button}
-          onPress={() => handleMouseClick("right")}
-        >
-          <Text style={styles.buttonText}>R</Text>
-        </Pressable>
-      </View>
+      {/* Touch area with instruction text */}
+      {!connecting && !connectionError && (
+        <>
+          <View style={styles.touchAreaContainer}>
+            <Text style={styles.instructionText}>
+              Move your finger on the screen to move the mouse cursor
+            </Text>
+            <View style={styles.touchpad} {...panResponder.panHandlers} />
+          </View>
+
+{/* Bottom buttons */}
+<View style={styles.buttonContainer}>
+            <Pressable
+              style={styles.button}
+              onPress={() => handleMouseClick("left")}
+            >
+              <Text style={styles.buttonText}>L</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.button, styles.middleButton]}
+              onPress={() => handleMouseClick("middle")}
+            >
+              <Text style={styles.buttonText}>M</Text>
+            </Pressable>
+            <Pressable
+              style={styles.button}
+              onPress={() => handleMouseClick("right")}
+            >
+              <Text style={styles.buttonText}>R</Text>
+            </Pressable>
+          </View>
+        </>
+        )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  statusContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1a1a1a',
+  },
+  statusText: {
+    color: '#ffffff',
+    fontSize: 18,
+    marginTop: 16,
+  },
+  retryButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    marginTop: 24,
+  },
+  retryButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   container: {
     flex: 1,
     backgroundColor: "#1a1a1a",

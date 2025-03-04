@@ -64,6 +64,26 @@ try {
 // Keep track of active connections
 const activeConnections = new Set();
 
+function getAllLocalIPs() {
+  try {
+    const interfaces = os.networkInterfaces();
+    const addresses = [];
+
+    for (const name of Object.keys(interfaces)) {
+      for (const interface of interfaces[name]) {
+        if (interface.family === "IPv4") {
+          // Include internal IPs too (helps with direct connections)
+          addresses.push(interface.address);
+        }
+      }
+    }
+    return addresses;
+  } catch (error) {
+    console.error("Error getting all local IPs:", error);
+    return ["localhost", "127.0.0.1"];
+  }
+}
+
 function getLocalIPs() {
   try {
     const interfaces = os.networkInterfaces();
@@ -83,7 +103,7 @@ function getLocalIPs() {
   }
 }
 
-const localIPs = getLocalIPs();
+const localIPs = getAllLocalIPs();
 
 // Mouse control functions with retry logic
 function withRetry(fn, maxRetries = 3) {

@@ -9,7 +9,12 @@
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">localhost</domain>
         <domain includeSubdomains="true">10.0.2.2</domain>
-        <!-- Add your local IP range if needed -->
-        <domain includeSubdomains="true">192.168.1.0</domain>
+        <!-- Common IP ranges -->
+        <domain includeSubdomains="true">192.168.0.0/16</domain>
+        <domain includeSubdomains="true">172.16.0.0/12</domain>
+        <domain includeSubdomains="true">10.0.0.0/8</domain>
+        <!-- Hotspot ranges -->
+        <domain includeSubdomains="true">192.168.43.0/24</domain>
+        <domain includeSubdomains="true">172.20.10.0/24</domain>
     </domain-config>
 </network-security-config>
