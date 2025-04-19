@@ -1,3 +1,4 @@
+//useDeviceScanning.ts
 import { useState, useEffect } from "react";
 import NetInfo from "@react-native-community/netinfo";
 import * as Network from "expo-network";

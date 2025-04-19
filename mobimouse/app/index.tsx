@@ -4,79 +4,98 @@ import { Link } from 'expo-router';
 import { MaterialIcons, Entypo, Ionicons } from '@expo/vector-icons';
 import useDeviceScanning from './hooks/useDeviceScanning';
 
-export default function Home() {
-  const { availableDevices, isScanning, error, scanNetwork, networkType } = useDeviceScanning();
-  const [menuVisible, setMenuVisible] = useState(false);
-  const [manualConnectVisible, setManualConnectVisible] = useState(false);
-  const [manualIP, setManualIP] = useState('');
+interface MenuProps {
+  onRefresh: () => void;
+  onManualConnect: () => void;
+  onClose: () => void;
+}
 
-  const Menu = () => (
-    <Pressable 
-      style={styles.menuOverlay} 
-      onPress={() => setMenuVisible(false)}
-    >
-      <View style={styles.menu}>
-        <Pressable 
-          style={styles.menuItem}
-          onPress={() => {
-            scanNetwork();
-            setMenuVisible(false);
-          }}
-        >
-          <MaterialIcons name="refresh" size={24} color="#ffffff" />
-          <Text style={styles.menuItemText}>Refresh</Text>
-        </Pressable>
-        
-        <Pressable 
-          style={styles.menuItem}
-          onPress={() => {
-            setManualConnectVisible(true);
-            setMenuVisible(false);
-          }}
-        >
-          <MaterialIcons name="add" size={24} color="#ffffff" />
-          <Text style={styles.menuItemText}>Manual Connect</Text>
-        </Pressable>
-      </View>
-    </Pressable>
-  );
+const Menu = ({ onRefresh, onManualConnect, onClose }: MenuProps) => (
+  <Pressable
+    style={styles.menuOverlay}
+    onPress={onClose} // Calls the passed onClose function
+  >
+    <View style={styles.menu}>
+      <Pressable
+        style={styles.menuItem}
+        onPress={() => {
+          onRefresh(); // Calls the passed onRefresh function
+          onClose();    // Calls the passed onClose function
+        }}
+      >
+        <MaterialIcons name="refresh" size={24} color="#ffffff" />
+        <Text style={styles.menuItemText}>Refresh</Text>
+      </Pressable>
 
-  const ManualConnectModal = () => (
-    <Pressable 
+      <Pressable
+        style={styles.menuItem}
+        onPress={() => {
+          onManualConnect(); // Calls the passed onManualConnect function
+          onClose();         // Calls the passed onClose function
+        }}
+      >
+        <MaterialIcons name="add" size={24} color="#ffffff" />
+        <Text style={styles.menuItemText}>Manual Connect</Text>
+      </Pressable>
+    </View>
+  </Pressable>
+);
+
+interface ManualConnectModalProps {
+  visible: boolean;
+  onClose: () => void;
+  ip: string;
+  onIpChange: (text: string) => void; // Type for the state setter function
+  onConnect: () => void;
+}
+
+const ManualConnectModal = ({ visible, onClose, ip, onIpChange, onConnect }: ManualConnectModalProps) => {
+  if (!visible) {
+    return null;
+  }
+
+  return (
+    <Pressable
       style={styles.modalOverlay}
-      onPress={() => setManualConnectVisible(false)}
+      onPress={onClose} // Calls the passed onClose function
     >
-      <Pressable 
-        style={styles.modalContent} 
-        onPress={(e) => e.stopPropagation()} // This prevents the overlay's onPress from firing
+      <Pressable
+        style={styles.modalContent}
+        onPress={(e) => e.stopPropagation()}
       >
         <Text style={styles.modalTitle}>Connect to IP Address</Text>
         <TextInput
           style={styles.ipInput}
           placeholder="192.168.1.x"
           placeholderTextColor="#999999"
-          value={manualIP}
-          onChangeText={setManualIP}
+          value={ip} // Uses the passed ip prop
+          onChangeText={onIpChange} // Calls the passed onIpChange function
           keyboardType="numeric"
           autoCapitalize="none"
         />
         <View style={styles.modalButtons}>
           <Pressable
             style={[styles.modalButton, styles.cancelButton]}
-            onPress={() => setManualConnectVisible(false)}
+            onPress={onClose} // Calls the passed onClose function
           >
             <Text style={styles.modalButtonText}>Cancel</Text>
           </Pressable>
           <Link
             href={{
               pathname: "/touchpad",
-              params: { serverIp: manualIP }
+              params: { serverIp: ip } // Uses the passed ip prop
             }}
             asChild
+            disabled={!ip?.trim()} // Added disabled state based on ip prop
           >
             <Pressable
-              style={[styles.modalButton, styles.connectButton]}
-              onPress={() => setManualConnectVisible(false)}
+              style={[
+                styles.modalButton,
+                styles.connectButton,
+                !ip?.trim() && styles.disabledButton // Added disabled style
+              ]}
+              onPress={onConnect} // Calls the passed onConnect function
+              disabled={!ip?.trim()} // Added disabled state based on ip prop
             >
               <Text style={styles.modalButtonText}>Connect</Text>
             </Pressable>
@@ -85,6 +104,30 @@ export default function Home() {
       </Pressable>
     </Pressable>
   );
+};
+
+export default function Home() {
+  const { availableDevices, isScanning, error, scanNetwork, networkType } = useDeviceScanning();
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [manualConnectVisible, setManualConnectVisible] = useState(false);
+  const [manualIP, setManualIP] = useState('');
+
+  const handleRefresh = () => {
+    scanNetwork();
+  };
+
+  const handleOpenManualConnect = () => {
+    setManualConnectVisible(true);
+  };
+
+  const handleCloseModal = () => {
+    setManualConnectVisible(false);
+  };
+
+  const handleConnectManually = () => {
+     // The Link component handles navigation, we just need to close the modal
+     setManualConnectVisible(false);
+  };
 
   return (
     <View style={styles.container}>
@@ -166,11 +209,22 @@ export default function Home() {
         )}
       </ScrollView>
 
-      {/* Menu Overlay */}
-      {menuVisible && <Menu />}
-      
-      {/* Manual Connect Modal */}
-      {manualConnectVisible && <ManualConnectModal />}
+      {menuVisible && (
+        <Menu
+          onRefresh={handleRefresh}
+          onManualConnect={handleOpenManualConnect}
+          onClose={() => setMenuVisible(false)} // Can be inline or a separate handler
+        />
+      )}
+
+      {/* Manual Connect Modal - Render the external component and pass props */}
+      <ManualConnectModal
+        visible={manualConnectVisible} // Pass visibility state
+        onClose={handleCloseModal}      // Pass close handler
+        ip={manualIP}                   // Pass IP state value
+        onIpChange={setManualIP}        // Pass IP state setter directly
+        onConnect={handleConnectManually} // Pass connect handler (which closes modal)
+      />
     </View>
   );
 }
@@ -340,5 +394,9 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  disabledButton: {
+    backgroundColor: '#444444', // Example disabled style (darker grey)
+    opacity: 0.6,             // Example disabled style (slightly transparent)
   },
 });
